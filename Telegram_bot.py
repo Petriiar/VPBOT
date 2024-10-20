@@ -3,9 +3,11 @@ import telegram
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 from telegram import ReplyKeyboardMarkup
 import os
+import google.generativeai as genai
 
 TELEGRAM_TOKEN = '7831930915:AAHkmdIIs3HA0LKWSnchEc67igFcaXrSLVY'
-OPENAI_API_KEY = 'b38a3978-85fe-4754-b68e-ce0a3e34d66f'
+OPENAI_API_KEY = 'AIzaSyCLsDy5Hla50FcQ0vkz1n68ICJlZ-GVzzM' #'b38a3978-85fe-4754-b68e-ce0a3e34d66f'
+
 
 chat_history= [] 
 openai.api_key = OPENAI_API_KEY
@@ -66,21 +68,54 @@ def generate_gpt_response(message,dialog_num):
     else:
         TEXT= "You are a helpful assistant."
 
-    client = openai.OpenAI(
-        api_key=OPENAI_API_KEY, #os.environ.get("SAMBANOVA_API_KEY"),
-        base_url="https://api.sambanova.ai/v1",
-        )
-    chat_history.append({"role": "user", "content": message})
-    response = client.chat.completions.create(
-        model='Meta-Llama-3.1-405B-Instruct',
-        messages=[{"role":"system","content": TEXT},{"role":"user","content":TEXT_USER},
-                *chat_history], #"You are a helpful assistant."
-        temperature =  0.1,
-        top_p = 0.1
-        )       
-    assistant_response = response.choices[0].message.content
-    chat_history.append({"role": "system", "content": assistant_response})
-    return assistant_response #response['choices'][0]['text'].strip()
+    #### SAMBAVOVA MODELS
+
+    # client = openai.OpenAI(
+    #     api_key=OPENAI_API_KEY, #os.environ.get("SAMBANOVA_API_KEY"),
+    #     base_url="https://api.sambanova.ai/v1",
+    #     )
+    # chat_history.append({"role": "user", "content": message})
+    # response = client.chat.completions.create(
+    #     model='Meta-Llama-3.1-405B-Instruct',
+    #     messages=[{"role":"system","content": TEXT},{"role":"user","content":TEXT_USER},
+    #             *chat_history], #"You are a helpful assistant."
+    #     temperature =  0.1,
+    #     top_p = 0.1
+    #     )       
+    # assistant_response = response.choices[0].message.content
+    # chat_history.append({"role": "system", "content": assistant_response})
+    # return assistant_response #response['choices'][0]['text'].strip()
+
+    #GEMINI MODELS
+
+    genai.configure(api_key=OPENAI_API_KEY)
+    model=genai.GenerativeModel("gemini-1.5-flash")
+
+    if dialog_num=='0':
+        messages = [
+        {"role": "model", "parts": [TEXT]},  # Описание пациента как часть "model"
+        {"role": "user", "parts": [TEXT_USER]},
+        ] 
+        assistant_response = model.generate_content(messages)
+        return assistant_response.text
+    if len(chat_history)==0:
+        messages = [
+        {"role": "model", "parts": [f"You imitate a human patient who comes to the doctor. Your anamnesis is : {TEXT}. Write your words in the first person. Write yours actions in the third person highlighted with * and do not use the patient's name in it. Write actions not always and briefly. Separate speech and actions into separate paragraphs. Dont generate doctors speech"]},  # Описание пациента как часть "model"
+        {"role": "user", "parts": [f" First Doctor words: {TEXT_USER}"]},
+        ] 
+        chat_history.append(messages)
+    else:
+        messages = [
+        {"role": "model", "parts": [f"You are a patient who came to see the doctor. Here is your previous dialogue with the doctor and your medical history: {chat_history}. Write your words in the first person. Write yours actions in the third person highlighted with * and do not use the patient's name in it. Write actions not always and briefly. Separate speech and actions into separate paragraphs. Dont generate doctors speech"]},  # Описание пациента как часть "model"
+        {"role": "user", "parts": [f" Doctor words: {TEXT_USER}"]},
+        ] 
+        chat_history.append({"role": "user", "parts": [f" Doctor words: {TEXT_USER}"]})
+
+    assistant_response = model.generate_content(messages)
+    chat_history.append({"role": "model", "parts": [assistant_response.text]})
+
+    return assistant_response.text
+
 
 
 def start(update, context):
